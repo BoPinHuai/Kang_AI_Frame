@@ -2,6 +2,7 @@
 
 支持上传 PDF / Word / Markdown 文档，通过向量检索 + 大模型回答问题。
 
+
 ## 功能
 
 - 文档上传与管理（PDF、DOCX、Markdown）
@@ -16,8 +17,8 @@
 ### 1. 环境要求
 
 - Python 3.10+ （之后会更新简单的启动）
-- 选择一种模型方式就行：
-  - **本地**：安装 [Ollama](https://ollama.com) 并拉取模型
+- 选择一种模型方式就行了：
+  - **本地**：安装 [Ollama](https://ollama.com) 并拉取模型，安全性高一些，模型可以放入外部磁盘。
   - **外部 API**：准备 DeepSeek / OpenAI / Kimi 等 API Key
 
 ### 2. 安装依赖
