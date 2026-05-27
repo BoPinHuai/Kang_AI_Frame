@@ -1,0 +1,28 @@
+{
+  "active": "rag",
+  "providers": {
+    "rag": {
+      "type": "ollama",
+      "model": "qwen2.5:7b",
+      "base_url": "http://localhost:11434"
+    },
+    "deepseek": {
+      "type": "openai",
+      "model": "deepseek-chat",
+      "base_url": "https://api.deepseek.com/v1",
+      "api_key": ""
+    },
+    "kimi": {
+      "type": "openai",
+      "model": "moonshot-v1-32k",
+      "base_url": "https://api.moonshot.cn/v1",
+      "api_key": ""
+    },
+    "openai": {
+      "type": "openai",
+      "model": "gpt-4o-mini",
+      "base_url": "https://api.openai.com/v1",
+      "api_key": ""
+    }
+  }
+}

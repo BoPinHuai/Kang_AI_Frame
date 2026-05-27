@@ -1,0 +1,21 @@
+# 大家好 我是何佳康 欢迎给大家使用 以下是各位需要加载的资源
+# 入口在api.py 大家也可以自己写一个好看的启动器哦
+# # 进入项目目录后重新装依赖
+# pip install -r requirements.txt
+
+# 后端框架
+fastapi>=0.115
+uvicorn>=0.30
+pydantic>=2.5
+python-multipart>=0.0.9
+
+# 模型 Provider
+ollama>=0.4
+openai>=1.50
+
+# 检索 和 向量
+chromadb>=1.0
+sentence-transformers>=3.0
+# 文档解析
+pypdf>=5.0
+python-docx>=1.1
