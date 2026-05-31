@@ -1,10 +1,13 @@
 import os
+import sys
 from pathlib import Path
 
 # 国内访问 HuggingFace 较慢时，取消下一行注释使用镜像加速
 # os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
 
-CACHE_DIR = Path(__file__).parent / "hf-cache"
+# 打包后模型缓存放在 exe 同级目录，避免写入只读的 _internal/
+_BASE = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).parent
+CACHE_DIR = _BASE / "hf-cache"
 CACHE_DIR.mkdir(exist_ok=True)
 os.environ.setdefault("HF_HOME", str(CACHE_DIR))
 os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")

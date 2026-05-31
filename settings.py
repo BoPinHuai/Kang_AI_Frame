@@ -15,10 +15,12 @@
   num_predict    → providers/ollama_provider.py   LLM 最大输出 token 数
   max_chunk      → indexer.py         文档分块最大字符数（改后需重建索引）
 """
+import sys
 import json
 from pathlib import Path
 
-BASE_DIR    = Path(__file__).parent
+# PyInstaller 打包后 __file__ 指向 _internal/ 临时目录，用户数据要放在 exe 同级目录
+BASE_DIR    = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).parent
 CONFIG_PATH = BASE_DIR / "config.json"
 
 DEFAULTS: dict = {

@@ -29,13 +29,22 @@ from config import (
 from providers import ProviderError
 
 # ── 路径配置 ────────────────────────────────────────
-BASE_DIR    = Path(__file__).parent
-DB_PATH     = str(BASE_DIR / "db")
-META_PATH   = str(BASE_DIR / "db_meta.json")
-KB_DESC_PATH = BASE_DIR / "kb_desc.json"   # 知识库简述（folder → 描述）
-LIBRARY_DIR = BASE_DIR / "library"
-HISTORY_DIR = BASE_DIR / "history"
-STATIC_DIR  = BASE_DIR / "static"
+# 打包后：用户数据放 exe 同级目录，静态资源在 _internal/（sys._MEIPASS）
+import sys as _sys
+if getattr(_sys, 'frozen', False):
+    _DATA_DIR   = Path(_sys.executable).parent   # 用户可写目录（db/、library/、history/）
+    _BUNDLE_DIR = Path(_sys._MEIPASS)            # 只读打包资源（static/）
+else:
+    _DATA_DIR   = Path(__file__).parent
+    _BUNDLE_DIR = Path(__file__).parent
+
+BASE_DIR     = _DATA_DIR
+DB_PATH      = str(_DATA_DIR / "db")
+META_PATH    = str(_DATA_DIR / "db_meta.json")
+KB_DESC_PATH = _DATA_DIR / "kb_desc.json"
+LIBRARY_DIR  = _DATA_DIR / "library"
+HISTORY_DIR  = _DATA_DIR / "history"
+STATIC_DIR   = _BUNDLE_DIR / "static"
 
 LIBRARY_DIR.mkdir(exist_ok=True)
 HISTORY_DIR.mkdir(exist_ok=True)
