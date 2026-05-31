@@ -36,7 +36,7 @@ def retrieve(question: str, db_path: str = "./db",
         return []
 
     t1 = time.perf_counter()
-    embedding = get_model().encode([question]).tolist()
+    embedding = get_model().encode([question], normalize_embeddings=True).tolist()
     t2 = time.perf_counter()
 
     results = col.query(
@@ -55,7 +55,8 @@ def retrieve(question: str, db_path: str = "./db",
         source = meta["source"]
         if scope and not source.startswith(scope.rstrip("/") + "/") and source != scope.rstrip("/"):
             continue
-        chunks.append({"text": doc, "source": source, "distance": dist})
+        chunks.append({"text": doc, "source": source,
+                       "loc": meta.get("loc", ""), "distance": dist})
 
     print(f"[耗时] embed={t2-t1:.3f}s  chroma={t3-t2:.3f}s  检索总计={t3-t0:.3f}s")
     return chunks

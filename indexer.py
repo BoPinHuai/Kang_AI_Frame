@@ -4,13 +4,12 @@ import chromadb
 from chromadb.config import Settings
 from pathlib import Path
 from embedder import get_model
-from loader import load_document
+from loader import load_segments, SUPPORTED
 
-SUPPORTED = {".pdf", ".docx", ".md"}
 _CHROMA_SETTINGS = Settings(anonymized_telemetry=False)
 
 # 切分/索引策略版本号——影响 chunk 内容或 embedding 输入时递增
-CHUNK_VERSION = "semantic_v3"
+CHUNK_VERSION = "semantic_v5_table"
 MAX_CHUNK = 300
 MIN_CHUNK = 30
 
@@ -126,13 +125,15 @@ def build_index(library_folder: str, db_path: str, meta_path: str,
             client.delete_collection("knowledge_base")
         except Exception:
             pass
-        collection = client.create_collection("knowledge_base")
+        collection = client.create_collection(
+            "knowledge_base", metadata={"hnsw:space": "cosine"})
         print("  强制重建：已清空旧索引")
     else:
         try:
             collection = client.get_collection("knowledge_base")
         except Exception:
-            collection = client.create_collection("knowledge_base")
+            collection = client.create_collection(
+            "knowledge_base", metadata={"hnsw:space": "cosine"})
 
     # 扫描 library/ 下全部文件
     current_files: dict[str, float] = {}
@@ -157,8 +158,7 @@ def build_index(library_folder: str, db_path: str, meta_path: str,
         if old_ids:
             try:
                 collection.delete(ids=list(old_ids))
-            except Exception:
-                pass
+            except Exception:                   pass
         del meta[rel_path]
         print(f"  移除旧索引: {rel_path}")
 
@@ -185,8 +185,17 @@ def build_index(library_folder: str, db_path: str, meta_path: str,
         abs_path = library / rel_path
         ext = Path(rel_path).suffix.lower()
         try:
-            text = load_document(str(abs_path))
-            if not text.strip():
+            # 按分段读取（PDF 按页 / Excel 按工作表 / docx 表格分开），各带位置标签
+            segments = load_segments(str(abs_path))
+            chunks, locs = [], []
+            for seg in segments:
+                if not seg["text"].strip():
+                    continue
+                for ch in chunk_text(seg["text"], ext, _max_chunk):
+                    chunks.append(ch)
+                    locs.append(seg.get("loc", ""))
+
+            if not chunks:
                 print(f"  跳过（内容为空）: {rel_path}")
                 continue
 
@@ -197,15 +206,15 @@ def build_index(library_folder: str, db_path: str, meta_path: str,
                 except Exception:
                     pass
 
-            chunks = chunk_text(text, ext, _max_chunk)
             safe_id = (rel_path.replace("/", "__")
                                 .replace("\\", "__")
                                 .replace(" ", "_")
                                 .replace(".", "_"))
             chunk_ids = [f"{safe_id}_{ci}" for ci in range(len(chunks))]
 
-            embeddings = embed_model.encode(chunks, show_progress_bar=False).tolist()
-            metadatas = [{"source": rel_path}] * len(chunks)
+            embeddings = embed_model.encode(
+                chunks, show_progress_bar=False, normalize_embeddings=True).tolist()
+            metadatas = [{"source": rel_path, "loc": locs[ci]} for ci in range(len(chunks))]
 
             batch_size = 100
             for bi in range(0, len(chunks), batch_size):

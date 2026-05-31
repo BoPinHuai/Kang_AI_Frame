@@ -5,6 +5,7 @@ config.json
 db/
 db_meta.json
 db_bm25.pkl
+kb_desc.json
 history/
 library/
 
@@ -28,3 +29,8 @@ Thumbs.db
 
 # Claude Code
 .claude/
+
+# PyInstaller 打包产物
+dist/
+build/
+*.spec.bak

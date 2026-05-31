@@ -8,7 +8,7 @@ import json
 import uuid
 import shutil
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import threading
 from typing import Optional
@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from loader import load_document
+from loader import SUPPORTED
 from indexer import build_index
 from chat import ask_stream
 from retriever import reset_collection
@@ -32,6 +32,7 @@ from providers import ProviderError
 BASE_DIR    = Path(__file__).parent
 DB_PATH     = str(BASE_DIR / "db")
 META_PATH   = str(BASE_DIR / "db_meta.json")
+KB_DESC_PATH = BASE_DIR / "kb_desc.json"   # 知识库简述（folder → 描述）
 LIBRARY_DIR = BASE_DIR / "library"
 HISTORY_DIR = BASE_DIR / "history"
 STATIC_DIR  = BASE_DIR / "static"
@@ -40,7 +41,7 @@ LIBRARY_DIR.mkdir(exist_ok=True)
 HISTORY_DIR.mkdir(exist_ok=True)
 STATIC_DIR.mkdir(exist_ok=True)
 
-SUPPORTED = {".pdf", ".docx", ".md"}
+# SUPPORTED 从 loader 统一导入（.pdf .docx .md .xlsx .csv）
 
 
 def _warmup():
@@ -256,6 +257,307 @@ async def chat_stream(request: ChatRequest):
     )
 
 
+# ── 仪表盘统计 ────────────────────────────────────────
+def _human_size(nbytes: int) -> str:
+    for unit in ("B", "KB", "MB", "GB"):
+        if nbytes < 1024 or unit == "GB":
+            return f"{nbytes:.1f} {unit}" if unit != "B" else f"{nbytes} B"
+        nbytes /= 1024
+    return f"{nbytes:.1f} GB"
+
+
+def compute_stats() -> dict:
+    """实时从磁盘计算统计：不依赖任何额外存储。"""
+    # 1) 扫 library：文档数 / 大小 / 类型占比 / 各知识库（顶层文件夹）
+    files = [f for f in LIBRARY_DIR.rglob("*")
+             if f.is_file() and f.suffix.lower() in SUPPORTED
+             and not f.name.startswith("~$") and not f.name.startswith(".")]
+    total_bytes = sum(f.stat().st_size for f in files)
+    by_type: dict[str, int] = {}
+    kb: dict[str, dict] = {}
+    for f in files:
+        ext = f.suffix.lower().lstrip(".").upper()
+        by_type[ext] = by_type.get(ext, 0) + 1
+        rel = f.relative_to(LIBRARY_DIR)
+        top = rel.parts[0] if len(rel.parts) > 1 else "（根目录）"
+        k = kb.setdefault(top, {"name": top, "docs": 0, "bytes": 0})
+        k["docs"] += 1
+        k["bytes"] += f.stat().st_size
+
+    # 2) 已索引数（解析成功）来自 db_meta.json
+    indexed = 0
+    try:
+        with open(META_PATH, encoding="utf-8") as fp:
+            meta = json.load(fp)
+        indexed = len([k for k in meta if not k.startswith("__")])
+    except Exception:
+        pass
+
+    # 3) 问答统计 + 近 14 天趋势，遍历 history/*.json
+    from collections import defaultdict
+    conv_count = 0
+    msg_count = 0
+    day_conv: dict[str, set] = defaultdict(set)
+    day_msg: dict[str, int] = defaultdict(int)
+    for hf in HISTORY_DIR.glob("*.json"):
+        try:
+            with open(hf, encoding="utf-8") as fp:
+                conv = json.load(fp)
+        except Exception:
+            continue
+        conv_count += 1
+        for m in conv.get("messages", []):
+            if m.get("role") != "user":
+                continue
+            msg_count += 1
+            ts = (m.get("timestamp") or "")[:10]
+            if ts:
+                day_conv[ts].add(conv.get("id", hf.stem))
+                day_msg[ts] += 1
+
+    # 近 14 天序列（无数据的日期补 0）
+    today = datetime.now().date()
+    trend = []
+    for i in range(13, -1, -1):
+        d = today - timedelta(days=i)
+        key = d.isoformat()
+        trend.append({"date": d.strftime("%m-%d"),
+                      "convs": len(day_conv.get(key, set())),
+                      "msgs": day_msg.get(key, 0)})
+
+    kb_list = sorted(
+        [{"name": v["name"], "docs": v["docs"], "size": _human_size(v["bytes"])}
+         for v in kb.values()],
+        key=lambda x: -x["docs"],
+    )
+
+    return {
+        "doc_count": len(files),
+        "total_size": _human_size(total_bytes),
+        "indexed_count": indexed,
+        "pending_count": max(0, len(files) - indexed),
+        "kb_count": len(kb),
+        "by_type": sorted(
+            [{"ext": k, "count": v} for k, v in by_type.items()],
+            key=lambda x: -x["count"]),
+        "kb_list": kb_list,
+        "conv_count": conv_count,
+        "msg_count": msg_count,
+        "trend": trend,
+    }
+
+
+@app.get("/api/stats")
+async def get_stats():
+    return compute_stats()
+
+
+@app.get("/api/activity")
+async def get_activity():
+    """侧栏知识库 tab：最近索引动态 + 最近一次问答。"""
+    # 最近索引的文件（按 mtime 取前 5）
+    recent_files = []
+    try:
+        with open(META_PATH, encoding="utf-8") as f:
+            meta = json.load(f)
+        pairs = [(k, v.get("mtime", 0)) for k, v in meta.items() if not k.startswith("__")]
+        pairs.sort(key=lambda x: -x[1])
+        for rel, mtime in pairs[:5]:
+            recent_files.append({
+                "path": rel,
+                "name": Path(rel).name,
+                "modified": datetime.fromtimestamp(mtime).strftime("%m-%d %H:%M"),
+            })
+    except Exception:
+        pass
+    # 最近一次问答（取最新的 history 文件的最后一问一答）
+    latest_qa = None
+    try:
+        files = sorted(HISTORY_DIR.glob("*.json"), key=lambda x: x.stat().st_mtime, reverse=True)
+        if files:
+            with open(files[0], encoding="utf-8") as f:
+                conv = json.load(f)
+            msgs = conv.get("messages", [])
+            q = next((m["content"] for m in reversed(msgs) if m["role"] == "user"), None)
+            a = next((m["content"] for m in reversed(msgs) if m["role"] == "assistant"), None)
+            srcs = next((m.get("sources", []) for m in reversed(msgs) if m["role"] == "assistant"), [])
+            if q and a:
+                latest_qa = {
+                    "question": q[:80] + ("…" if len(q) > 80 else ""),
+                    "answer": a[:120] + ("…" if len(a) > 120 else ""),
+                    "sources": list({s["source"] for s in srcs})[:3],
+                }
+    except Exception:
+        pass
+    # 索引概况
+    indexed = len([k for k in (meta if "meta" in dir() else {}) if not k.startswith("__")])
+    return {"indexed": indexed, "recent_files": recent_files, "latest_qa": latest_qa}
+
+
+# ── 知识库（顶层文件夹的卡片视图）────────────────────────
+def _load_kb_desc() -> dict:
+    try:
+        with open(KB_DESC_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _save_kb_desc(d: dict):
+    with open(KB_DESC_PATH, "w", encoding="utf-8") as f:
+        json.dump(d, f, ensure_ascii=False, indent=2)
+
+
+def _kb_meta(d: dict, path: str):
+    """读取某知识库的 (desc, icon)，兼容旧版纯字符串存储。"""
+    e = d.get(path)
+    if isinstance(e, dict):
+        return e.get("desc", ""), e.get("icon", "")
+    if isinstance(e, str):
+        return e, ""
+    return "", ""
+
+
+@app.get("/api/kb")
+async def list_kb():
+    """列出每个知识库（library 顶层文件夹）+ 根目录散落文件，含文档数/大小/简述/图标。"""
+    meta = _load_kb_desc()
+    kb: dict[str, dict] = {}
+    root_docs, root_bytes = 0, 0
+    for f in LIBRARY_DIR.rglob("*"):
+        if not (f.is_file() and f.suffix.lower() in SUPPORTED):
+            continue
+        if f.name.startswith("~$") or f.name.startswith("."):
+            continue
+        rel = f.relative_to(LIBRARY_DIR)
+        size = f.stat().st_size
+        if len(rel.parts) > 1:
+            top = rel.parts[0]
+            k = kb.setdefault(top, {"name": top, "path": top, "docs": 0, "bytes": 0})
+            k["docs"] += 1
+            k["bytes"] += size
+        else:
+            root_docs += 1
+            root_bytes += size
+    items = []
+    for v in sorted(kb.values(), key=lambda x: -x["docs"]):
+        desc, icon = _kb_meta(meta, v["path"])
+        items.append({"name": v["name"], "path": v["path"], "docs": v["docs"],
+                      "size": _human_size(v["bytes"]), "desc": desc, "icon": icon})
+    return {"kbs": items,
+            "root": {"docs": root_docs, "size": _human_size(root_bytes)}}
+
+
+class KbMetaRequest(BaseModel):
+    path: str
+    desc: str = ""
+    icon: str = ""
+
+
+@app.put("/api/kb/meta")
+async def set_kb_meta(req: KbMetaRequest):
+    """保存知识库的简述 + 自定义图标（base64 data URL）。"""
+    d = _load_kb_desc()
+    path = req.path.strip("/")
+    desc = req.desc.strip()[:120]
+    icon = req.icon or ""
+    if desc or icon:
+        d[path] = {"desc": desc, "icon": icon}
+    else:
+        d.pop(path, None)
+    _save_kb_desc(d)
+    return {"ok": True, "path": path}
+
+
+class KbRenameRequest(BaseModel):
+    path: str
+    new_name: str
+
+
+@app.post("/api/kb/rename")
+async def rename_kb(req: KbRenameRequest, bg: BackgroundTasks):
+    """重命名知识库（顶层文件夹），迁移其简述/图标，并后台重建索引以更新来源路径。"""
+    old = req.path.strip("/")
+    new = req.new_name.strip().replace("/", "").replace("\\", "").replace("..", "").strip()
+    if not new:
+        raise HTTPException(status_code=400, detail="名称不能为空")
+    src = LIBRARY_DIR / old
+    dst = LIBRARY_DIR / new
+    if not src.is_dir():
+        raise HTTPException(status_code=404, detail="知识库不存在")
+    if dst.exists():
+        raise HTTPException(status_code=400, detail=f"「{new}」已存在")
+    src.rename(dst)
+    # 迁移简述/图标
+    d = _load_kb_desc()
+    if old in d:
+        d[new] = d.pop(old)
+        _save_kb_desc(d)
+    # 路径变了 → 后台增量重建（旧路径块移除、新路径块加入）
+    job_id = _new_job()
+    bg.add_task(_run_index_job, job_id, False, f"已重命名为「{new}」，索引已更新")
+    return {"ok": True, "new_name": new, "job_id": job_id}
+
+
+# ── 文件预览 ─────────────────────────────────────────
+@app.get("/api/preview/{path:path}")
+async def preview_file(path: str):
+    """返回文件预览数据：MD/TXT→文本, XLSX/CSV→表格, DOCX→文本, PDF→重定向到原始文件。"""
+    from fastapi.responses import FileResponse
+    clean = path.lstrip("/").replace("..", "").strip()
+    abs_path = LIBRARY_DIR / clean
+    if not abs_path.exists() or not abs_path.is_file():
+        raise HTTPException(status_code=404, detail="文件不存在")
+    # 安全检查：必须在 library 内
+    try:
+        abs_path.relative_to(LIBRARY_DIR)
+    except ValueError:
+        raise HTTPException(status_code=403, detail="访问被拒绝")
+
+    suffix = abs_path.suffix.lower()
+
+    if suffix == ".pdf":
+        return FileResponse(str(abs_path), media_type="application/pdf",
+                            headers={"Content-Disposition": f"inline; filename=\"{abs_path.name}\""})
+
+    if suffix in (".md", ".txt"):
+        text = abs_path.read_text(encoding="utf-8", errors="ignore")
+        return {"type": "markdown", "content": text, "name": abs_path.name}
+
+    if suffix == ".docx":
+        from loader import _seg_docx
+        segs = _seg_docx(str(abs_path))
+        text = "\n\n".join(s["text"] for s in segs if s["text"].strip())
+        return {"type": "text", "content": text, "name": abs_path.name}
+
+    if suffix == ".csv":
+        import csv, io
+        rows = []
+        with open(abs_path, newline="", encoding="utf-8-sig", errors="ignore") as f:
+            for r in csv.reader(f):
+                rows.append(r)
+                if len(rows) > 200:
+                    break
+        return {"type": "table", "rows": rows, "name": abs_path.name}
+
+    if suffix == ".xlsx":
+        from openpyxl import load_workbook
+        wb = load_workbook(str(abs_path), read_only=True, data_only=True)
+        sheets = {}
+        for ws in wb.worksheets:
+            rows = []
+            for r in ws.iter_rows(values_only=True):
+                rows.append(["" if c is None else str(c) for c in r])
+                if len(rows) > 200:
+                    break
+            if rows:
+                sheets[ws.title] = rows
+        wb.close()
+        return {"type": "xlsx", "sheets": sheets, "name": abs_path.name}
+
+    raise HTTPException(status_code=415, detail=f"不支持预览该格式：{suffix}")
+
+
 # ── 文件库 ───────────────────────────────────────────
 @app.get("/api/library")
 async def get_library():
@@ -286,7 +588,7 @@ async def upload_document(
     """上传文件 → 立即返回 job_id，索引在后台跑。前端轮询 /api/jobs/{id} 看进度。"""
     suffix = Path(file.filename).suffix.lower()
     if suffix not in SUPPORTED:
-        raise HTTPException(status_code=400, detail="仅支持 PDF、Word(.docx)、Markdown(.md)")
+        raise HTTPException(status_code=400, detail="仅支持 PDF、Word(.docx)、Markdown(.md)、Excel(.xlsx)、CSV(.csv)")
 
     if folder:
         clean_folder = folder.strip("/").replace("..", "").strip()
@@ -452,13 +754,39 @@ async def test_connection(request: TestConnectionRequest):
 # ── 参数设置 ─────────────────────────────────────────
 @app.get("/api/settings")
 async def get_settings():
-    return load_settings()
+    s = load_settings()
+    # 密码不暴露给前端（只告知是否启用）
+    s.pop("lock_password", None)
+    return s
+
+
+@app.get("/api/lock-status")
+async def lock_status():
+    """告诉前端当前是否需要密码。不暴露密码本身。"""
+    s = load_settings()
+    return {"locked": s.get("lock_enabled", False) and bool(s.get("lock_password", ""))}
+
+
+class UnlockRequest(BaseModel):
+    password: str
+
+
+@app.post("/api/unlock")
+async def unlock(req: UnlockRequest):
+    """验证密码，服务端对比，前端不会拿到密码明文。"""
+    s = load_settings()
+    if not s.get("lock_enabled") or not s.get("lock_password"):
+        return {"ok": True}
+    return {"ok": req.password == s["lock_password"]}
 
 
 @app.put("/api/settings")
 async def update_settings(request: Request):
     data = await request.json()
-    return save_settings(data)
+    # 密码字段允许通过 PUT 设置（来自个人资料页）
+    result = save_settings(data)
+    result.pop("lock_password", None)   # 响应不暴露密码
+    return result
 
 
 # ── 静态文件 ─────────────────────────────────────────

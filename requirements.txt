@@ -19,3 +19,7 @@ sentence-transformers>=3.0
 # 文档解析
 pypdf>=5.0
 python-docx>=1.1
+openpyxl>=3.1
+
+# 桌面客户端（可选，仅 app_launcher.py 需要）
+pywebview>=5.0
