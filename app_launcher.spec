@@ -1,48 +1,49 @@
 # -*- mode: python ; coding: utf-8 -*-
 #
 # 打包命令（在项目根目录执行）：
-#   pip install pyinstaller
-#   pyinstaller app_launcher.spec
+#   pyinstaller app_launcher.spec --clean
 #
-# 输出目录：dist/KangAI/
-# 将整个 dist/KangAI/ 文件夹压缩分发即可。
-#
-# 注意：首次运行会自动下载 ML 模型（~200MB），需联网。
-#       之后模型缓存在 hf-cache/ 里，离线可用。
+# 输出目录：dist/KangAI/   压缩后分发即可。
 
-from PyInstaller.utils.hooks import collect_all, collect_submodules
-import sys
+from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_submodules
 
 block_cipher = None
 
-# ── 收集各包的动态数据 ────────────────────────────────────────────────────────
-def collect(pkg):
-    d, b, h = collect_all(pkg)
-    return d, b, h
-
-chroma_datas,   chroma_bins,   chroma_hidden   = collect('chromadb')
-st_datas,       st_bins,       st_hidden       = collect('sentence_transformers')
-torch_datas,    torch_bins,    torch_hidden     = collect('torch')
-trf_datas,      trf_bins,      trf_hidden      = collect('transformers')
+# ── 只精确收集必要包的数据文件 ────────────────────────────────────────────────
+chroma_datas,  chroma_bins,  chroma_hidden  = collect_all('chromadb')
+st_datas,      st_bins,      st_hidden      = collect_all('sentence_transformers')
 
 all_datas = (
-    chroma_datas + st_datas + torch_datas + trf_datas
+    chroma_datas + st_datas
+    + collect_data_files('tokenizers')
+    + collect_data_files('huggingface_hub')
     + [
-        ('static',    'static'),     # 前端 HTML/CSS/JS
-        ('providers', 'providers'),  # LLM provider 模块
+        ('static',    'static'),
+        ('providers', 'providers'),
     ]
 )
-all_binaries = chroma_bins + st_bins + torch_bins + trf_bins
-all_hidden   = (
-    chroma_hidden + st_hidden + torch_hidden + trf_hidden
+
+all_binaries = chroma_bins + st_bins
+
+all_hidden = (
+    chroma_hidden + st_hidden
     + collect_submodules('uvicorn')
     + collect_submodules('fastapi')
+    + collect_submodules('starlette')
     + collect_submodules('pydantic')
     + collect_submodules('anyio')
-    + collect_submodules('starlette')
+    + collect_submodules('multipart')
     + [
-        'pypdf', 'docx', 'openpyxl', 'ollama', 'openai',
-        'webview', 'clr', 'pythonnet',
+        # pywebview
+        'webview', 'clr', 'pythonnet', 'bottle', 'proxy_tools',
+        # 文档解析
+        'pypdf', 'pypdf._reader', 'pypdf._writer', 'pypdf.filters',
+        'docx', 'openpyxl', 'openpyxl.styles', 'openpyxl.utils',
+        # LLM
+        'ollama', 'openai', 'httpx', 'httpcore',
+        # Python 3.13 built-ins 有时被 PyInstaller 遗漏
+        'unicodedata', 'encodings', 'encodings.utf_8', 'encodings.ascii',
+        'encodings.latin_1', 'encodings.idna', '_codecs',
     ]
 )
 
@@ -54,9 +55,13 @@ a = Analysis(
     hiddenimports=all_hidden,
     hookspath=[],
     runtime_hooks=[],
-    excludes=['matplotlib', 'notebook', 'IPython', 'scipy', 'sklearn'],
-    win_no_prefer_redirects=False,
-    win_private_assemblies=False,
+    excludes=[
+        # 不需要的大包，减小体积
+        'matplotlib', 'notebook', 'IPython', 'scipy',
+        'sklearn', 'pandas', 'PIL',
+        'torch.distributed', 'tensorboard',
+        'pytest', 'unittest',
+    ],
     cipher=block_cipher,
     noarchive=False,
 )
@@ -70,11 +75,10 @@ exe = EXE(
     exclude_binaries=True,
     name='KangAI',
     debug=False,
-    bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=False,          # 不显示黑色终端窗口
-    icon='static/icon.ico', # 任务栏图标
+    console=False,
+    icon='static/icon.ico',
 )
 
 coll = COLLECT(
@@ -85,5 +89,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='KangAI',          # 输出到 dist/KangAI/
+    name='KangAI',
 )

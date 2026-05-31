@@ -50,15 +50,16 @@ def _run_server():
     uvicorn.run(app, host=HOST, port=PORT, log_level="warning")
 
 
-def _wait_for_server(timeout: int = 30) -> bool:
+def _wait_for_server(timeout: int = 180) -> bool:
+    """轮询直到服务器就绪，首次运行因 Defender 扫描可能需要 1-2 分钟。"""
     url = f"http://{HOST}:{PORT}/api/settings"
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
-            urllib.request.urlopen(url, timeout=1)
+            urllib.request.urlopen(url, timeout=2)
             return True
         except Exception:
-            time.sleep(0.3)
+            time.sleep(0.5)
     return False
 
 
@@ -109,17 +110,38 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   height:100vh;background:#faf9f5;
   font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;}
 .spinner{width:32px;height:32px;border:3px solid #e7e3d8;border-top-color:#d97757;
-  border-radius:50%;animation:spin .7s linear infinite;margin-bottom:14px;}
+  border-radius:50%;animation:spin .7s linear infinite;margin-bottom:18px;}
 @keyframes spin{to{transform:rotate(360deg);}}
-p{font-size:13px;color:#83807a;}
+.title{font-size:15px;color:#3d3a34;margin-bottom:6px;font-weight:500;}
+.sub{font-size:12px;color:#a8a39a;text-align:center;line-height:1.7;}
+.tip{margin-top:22px;font-size:11px;color:#c8c3ba;text-align:center;}
 </style></head>
-<body><div class="spinner"></div><p>正在启动知识库…</p></body></html>"""
+<body>
+  <div class="spinner"></div>
+  <div class="title">正在启动知识库…</div>
+  <div class="sub">首次启动需加载依赖，约需 1-2 分钟<br>请耐心等待，不要关闭窗口</div>
+  <div class="tip">如果杀毒软件弹出提示，请选择「允许」</div>
+</body></html>"""
 
 _TIMEOUT_HTML = """<!DOCTYPE html>
 <html><head><meta charset="utf-8"><style>
-body{display:flex;align-items:center;justify-content:center;height:100vh;
-  background:#faf9f5;font-family:sans-serif;color:#c0392b;font-size:14px;}
-</style></head><body><p>⚠️ 服务器启动超时，请关闭后重试。</p></body></html>"""
+*{margin:0;padding:0;box-sizing:border-box;}
+body{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  height:100vh;background:#faf9f5;
+  font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;gap:10px;}
+.icon{font-size:32px;}
+.title{font-size:15px;color:#c0392b;font-weight:500;}
+.sub{font-size:12px;color:#a8a39a;text-align:center;line-height:1.8;}
+</style></head>
+<body>
+  <div class="icon">⚠️</div>
+  <div class="title">启动超时</div>
+  <div class="sub">
+    服务器未能在 3 分钟内就绪<br>
+    可能原因：杀毒软件拦截 / 端口 8000 被占用<br>
+    请关闭后重试，或右键以管理员身份运行
+  </div>
+</body></html>"""
 
 
 # ── 主入口 ────────────────────────────────────────────────────────────────────
