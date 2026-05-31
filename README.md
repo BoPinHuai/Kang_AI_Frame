@@ -47,15 +47,23 @@ python api.py
 
 ---
 
-### 方式二：桌面客户端
+### 方式二：桌面客户端（打包版，推荐）
+
+前往 [Releases](https://github.com/BoPinHuai/Kang_AI_Frame/releases) 下载最新的 `KangAI.zip`，解压后双击 `KangAI.exe` 即可。
+
+**无需安装 Python，无需 pip install**，依赖已全部内置。
+
+---
+
+### 方式三：桌面客户端（源码运行）
+
+已按方式一完成依赖安装后，执行：
 
 ```bash
-pip install -r requirements.txt
 python app_launcher.py
 ```
 
-自动弹出独立窗口，无需打开浏览器。  
-发布版本的 `.exe` 文件见 [Releases](https://github.com/BoPinHuai/Kang_AI_Frame/releases)。
+效果与打包版相同，自动弹出独立窗口。
 
 ---
 
