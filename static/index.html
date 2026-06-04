@@ -757,6 +757,9 @@ body.sb-collapsed .sb-reopen{display:flex;}
 .kb-file-ic{flex-shrink:0;color:var(--accent);}
 .kb-file-name{flex:1;font-size:13.5px;color:var(--txt);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .kb-file-meta{font-size:11.5px;color:var(--gray3);white-space:nowrap;flex-shrink:0;}
+.kb-file:hover{background:var(--bg-soft);border-color:var(--accent-soft);}
+.kb-file-row-actions{display:flex;gap:4px;opacity:0;transition:opacity .12s;flex-shrink:0;margin-left:4px;}
+.kb-file:hover .kb-file-row-actions{opacity:1;}
 .kb-empty{text-align:center;color:var(--txt-m);padding:50px 0;font-size:13px;}
 </style>
 </head>
@@ -1502,6 +1505,35 @@ checkLock().then(() => {
 });
 marked.setOptions({ breaks:true, gfm:true });
 
+// ── Markdown + 数学公式渲染 ────────────────────────────────────────────────
+// 预处理：把 AI 常见的 [ ... ] 单行分隔符转成 KaTeX 认识的 \[ ... \]
+function _preprocess(text) {
+  // 把独占一行的 [ 和 ] 替换为 \[ \]（避免破坏普通方括号）
+  return text
+    .replace(/^\[\s*$/mg, '\\[')
+    .replace(/^\]\s*$/mg, '\\]');
+}
+
+const _katexOpts = {
+  delimiters: [
+    {left: '$$',   right: '$$',   display: true},
+    {left: '$',    right: '$',    display: false},
+    {left: '\\[',  right: '\\]',  display: true},
+    {left: '\\(',  right: '\\)',  display: false},
+  ],
+  throwOnError: false,
+};
+
+function renderMarkdown(text) {
+  return marked.parse(_preprocess(text));
+}
+
+function renderKatex(el) {
+  if (window.renderMathInElement) {
+    try { renderMathInElement(el, _katexOpts); } catch {}
+  }
+}
+
 // ── 桌面客户端下载入口（浏览器模式才显示）──────────────────────────────────
 const GITHUB_RELEASE_URL = 'https://github.com/BoPinHuai/Kang_AI_Frame/releases/latest';
 const _isDesktopMode = new URLSearchParams(location.search).get('desktop') === '1';
@@ -1808,12 +1840,13 @@ function toggleCfgHistory() {
   el.classList.toggle('on');
 }
 function applyStylePreset2(key) {
+  const _latex = '所有数学表达式（含括号内的简短公式）必须用 LaTeX：行内用 $...$，独立用 $$...$$，严禁用 E/(3(1-2v)) 等纯文本写法或 Unicode 符号（√²σ等）替代。';
   const presets = {
-    professional: '你是一个专业的智能助手。根据参考资料回答用户问题，资料不相关时用自己的知识回答。回答详细完整，充分展开说明。',
-    concise:      '你是一个简洁的助手。用最少的文字给出准确答案，不需要展开说明，不要废话。',
-    doconly:      '你只能根据用户提供的参考资料回答问题。如果资料中没有相关信息，直接说"文档中未找到相关内容"，不要用自己的知识补充。',
-    engineering:  '你是一位资深工程技术专家。根据参考资料和专业知识，从工程实践角度详细解答问题，包括原理、操作步骤和注意事项。',
-    english:      'You are a helpful assistant. Answer all questions in English, based on the provided reference materials. Be clear, accurate, and professional.',
+    professional: `你是一个专业的智能助手。根据参考资料回答用户问题，资料不相关时用自己的知识回答。回答详细完整，充分展开说明。${_latex}`,
+    concise:      `你是一个简洁的助手。用最少的文字给出准确答案，不需要展开说明，不要废话。${_latex}`,
+    doconly:      `你只能根据用户提供的参考资料回答问题。如果资料中没有相关信息，直接说"文档中未找到相关内容"，不要用自己的知识补充。${_latex}`,
+    engineering:  `你是一位资深工程技术专家。根据参考资料和专业知识，从工程实践角度详细解答问题，包括原理、操作步骤和注意事项。${_latex}`,
+    english:      `You are a helpful assistant. Answer all questions in English, based on the provided reference materials. Be clear, accurate, and professional. Use LaTeX for all math: inline with $...$, display with $$...$$`,
   };
   if (presets[key]) document.getElementById('cfg-system-prompt').value = presets[key];
 }
@@ -2178,7 +2211,7 @@ async function deleteKbFolder(ev, path, name) {
     if (!r.ok) throw new Error((await r.json()).detail || '删除失败');
     toast(`「${name}」已删除，索引更新中…`);
     if (currentScope && currentScope.startsWith(path)) setScope(null);
-    await loadKbView();
+    await loadKB();
     await loadKbTrack();
   } catch(e) { toast(e.message, 'err'); }
 }
@@ -2189,9 +2222,15 @@ async function deleteKbFile(path) {
     const r = await fetch(`/api/files?path=${encodeURIComponent(path)}`, {method:'DELETE'});
     if (!r.ok) throw new Error((await r.json()).detail || '删除失败');
     toast('文件已删除，索引更新中…');
-    // 如果当前 scope 是被删文件，清除
     if (currentScope === path) setScope(null);
+    // 刷新侧栏 + 主面板（判断当前是文件夹视图还是卡片视图）
     await loadKbTrack();
+    const folderPath = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '';
+    const kbBody = document.getElementById('kbBody');
+    if (kbBody && kbBody.querySelector('.kb-file')) {
+      // 当前在文件夹视图，刷新当前文件夹
+      await kbOpenFolder(folderPath, folderPath.split('/').pop() || '未分类');
+    }
   } catch(e) { toast(e.message, 'err'); }
 }
 
@@ -2234,7 +2273,8 @@ function openPreview(path) {
     .then(d => {
       if (d.type === 'markdown') {
         body.className = 'preview-body rendered';
-        body.innerHTML = marked.parse(d.content);
+        body.innerHTML = renderMarkdown(d.content);
+        renderKatex(body);
       } else if (d.type === 'text') {
         body.innerHTML = `<pre>${esc(d.content)}</pre>`;
       } else if (d.type === 'table') {
@@ -2584,10 +2624,15 @@ async function kbOpenFolder(path, name) {
           <span class="kb-file-ic">${folderIc}</span>
           <span class="kb-file-name">${esc(c.name)}</span>
           <span class="kb-file-meta">文件夹 ›</span></div>`;
-      return `<div class="kb-file">
+      return `<div class="kb-file" style="cursor:pointer" onclick="openPreview('${esc(c.path)}')">
         <span class="kb-file-ic"><svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
         <span class="kb-file-name" title="${esc(c.path)}">${esc(c.name)}</span>
-        <span class="kb-file-meta">${esc(c.size)} · ${esc(c.modified)}</span></div>`;
+        <span class="kb-file-meta">${esc(c.size)} · ${esc(c.modified)}</span>
+        <div class="kb-file-row-actions" onclick="event.stopPropagation()">
+          <button class="kb-file-btn" onclick="kbInsertAt('${esc(c.path)}')" title="插入 @ 引用">@</button>
+          <button class="kb-file-btn" style="color:#e05252" onclick="deleteKbFile('${esc(c.path)}')" title="删除">✕</button>
+        </div>
+      </div>`;
     }).join('') || '<div class="kb-empty">这个文件夹还没有文档</div>';
     body.innerHTML = `<div class="kb-navbar">
         <button class="kb-back" onclick="${upAction}">
@@ -2733,11 +2778,12 @@ function addAI(text, sources) {
   el.className = 'msg ai';
   const bubble = document.createElement('div');
   bubble.className = 'bubble rendered'; bubble.dataset.raw = text;
-  bubble.innerHTML = marked.parse(text);
+  bubble.innerHTML = renderMarkdown(text);
   el.appendChild(bubble);
   el.insertAdjacentHTML('beforeend', buildActions());
   if (sources?.length) el.insertAdjacentHTML('beforeend', buildSrc(sources));
   msgs.appendChild(el); msgs.scrollTop = 99999;
+  renderKatex(bubble);
 }
 
 function createAIEl(question, scope) {
@@ -2759,11 +2805,12 @@ function streamChunk(el, fullText) {
 function finishAI(el, fullText, sources) {
   const bubble = el.querySelector('.bubble');
   bubble.dataset.raw = fullText;
-  bubble.innerHTML = marked.parse(fullText);
+  bubble.innerHTML = renderMarkdown(fullText);
   bubble.classList.add('rendered');
   el.insertAdjacentHTML('beforeend', buildActions());
   if (sources?.length) el.insertAdjacentHTML('beforeend', buildSrc(sources));
   document.getElementById('msgs').scrollTop = 99999;
+  renderKatex(bubble);
 }
 
 function buildActions() {
@@ -3172,118 +3219,9 @@ function esc(s) {
 // ── Params ──
 let _paramsData = null;
 
-async function openParams() {
-  try {
-    _paramsData = await fetch('/api/settings').then(r => r.json());
-    renderParams();
-    document.getElementById('paramsModal').classList.add('show');
-  } catch(e) { toast('加载参数失败','err'); }
-}
-function closeParams() { document.getElementById('paramsModal').classList.remove('show'); }
-
-// ── Stats dashboard ──
-// ── Profile edit ──
-let _avatarDraft = null;  // null=未改动；''=已移除；'data:...'=新头像
-
-function renderProfilePreview() {
-  const av = _avatarDraft !== null ? _avatarDraft : _profile.user_avatar;
-  const name = document.getElementById('profileName').value || _profile.user_name || '朋';
-  const prev = document.getElementById('profileAvPreview');
-  if (av) { prev.style.backgroundImage = `url('${av}')`; prev.textContent = ''; }
-  else { prev.style.backgroundImage = ''; prev.textContent = name.trim().charAt(0); }
-  document.getElementById('profileAvClear').classList.toggle('show', !!av);
-}
-let _lockEnabled = false;
-function toggleLock() {
-  _lockEnabled = !_lockEnabled;
-  document.getElementById('lockToggle').classList.toggle('on', _lockEnabled);
-  document.getElementById('lockPwdWrap').style.display = _lockEnabled ? 'block' : 'none';
-  if (_lockEnabled) document.getElementById('lockPwd').focus();
-}
-function openProfile() {
-  _avatarDraft = null;
-  document.getElementById('profileName').value = _profile.user_name || '';
-  document.getElementById('profileAppName').value = _profile.app_name || '';
-  // 加载锁屏状态（不知道密码，只知道是否开启）
-  fetch('/api/lock-status').then(r => r.json()).then(d => {
-    _lockEnabled = d.locked;
-    document.getElementById('lockToggle').classList.toggle('on', _lockEnabled);
-    document.getElementById('lockPwdWrap').style.display = _lockEnabled ? 'block' : 'none';
-    document.getElementById('lockPwd').value = '';
-    document.getElementById('lockPwd').placeholder = _lockEnabled ? '修改密码（留空保持不变）' : '设置访问密码';
-  });
-  renderProfilePreview();
-  document.getElementById('profileModal').classList.add('show');
-}
-function closeProfile() { document.getElementById('profileModal').classList.remove('show'); }
-function clearAvatar() { _avatarDraft = ''; renderProfilePreview(); }
-
-// 选图 → 压缩到 256px 方形 → base64（避免 config.json 过大）
-function onAvatarPick(input) {
-  const file = input.files[0]; input.value = '';
-  if (!file) return;
-  const img = new Image();
-  img.onload = () => {
-    const S = 256, c = document.createElement('canvas');
-    c.width = S; c.height = S;
-    const ctx = c.getContext('2d');
-    const m = Math.min(img.width, img.height);
-    ctx.drawImage(img, (img.width - m) / 2, (img.height - m) / 2, m, m, 0, 0, S, S);
-    _avatarDraft = c.toDataURL('image/jpeg', 0.85);
-    renderProfilePreview();
-  };
-  img.src = URL.createObjectURL(file);
-}
-
-async function saveProfile() {
-  const btn = document.querySelector('#profileModal .btn-ok');
-  btn.disabled = true;
-  const pwd = document.getElementById('lockPwd').value;
-  const payload = {
-    user_name:    document.getElementById('profileName').value.trim() || '朋友',
-    app_name:     document.getElementById('profileAppName').value.trim() || '知识库',
-    lock_enabled: _lockEnabled,
-  };
-  // 只在输入了密码时才更新密码（留空=保持原密码）
-  if (pwd) payload.lock_password = pwd;
-  // 关闭密码时清空
-  if (!_lockEnabled) payload.lock_password = '';
-  if (_avatarDraft !== null) payload.user_avatar = _avatarDraft;
-  try {
-    const s = await fetch('/api/settings', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }).then(r => r.json());
-    _profile.user_name = s.user_name || '朋友';
-    _profile.user_avatar = s.user_avatar || '';
-    _profile.app_name = s.app_name || '知识库';
-    // 关闭密码后当前 session 也解锁
-    if (!_lockEnabled) sessionStorage.removeItem('unlocked');
-    applyProfile();
-    toast('✓ 资料已保存', 'ok');
-    closeProfile();
-  } catch (e) { toast('保存失败', 'err'); }
-  btn.disabled = false;
-}
-
-// 输入昵称时实时更新预览首字母
-document.addEventListener('input', e => {
-  if (e.target && e.target.id === 'profileName') renderProfilePreview();
-});
-
-function closeStats() { document.getElementById('statsModal').classList.remove('show'); }
-async function openStats() {
-  document.getElementById('statsModal').classList.add('show');
-  document.getElementById('statsBody').innerHTML =
-    '<div style="text-align:center;color:var(--txt-m);padding:40px 0">加载中…</div>';
-  try {
-    const d = await fetch('/api/stats').then(r => r.json());
-    renderStats(d);
-  } catch (e) {
-    document.getElementById('statsBody').innerHTML =
-      '<div style="text-align:center;color:#dc2626;padding:40px 0">加载失败</div>';
-  }
-}
+// 旧模态框函数已迁移到统一设置面板（cfgModal），此处为空占位避免调用报错
+// openParams / openProfile / openStats / closeParams / closeProfile / closeStats
+// 均已在上方 unified settings panel 区块重新定义，此处不再重复
 
 function renderStats(d) {
   const cards = [
