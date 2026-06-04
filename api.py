@@ -708,6 +708,68 @@ async def delete_last_exchange(conv_id: str):
     return {"message": "已删除最后一轮"}
 
 
+@app.delete("/api/kb/folder")
+async def delete_kb_folder(path: str, background_tasks: BackgroundTasks):
+    """删除 library/ 下的整个文件夹（知识库）并重建索引。"""
+    import shutil as _shutil
+    target = (LIBRARY_DIR / path).resolve()
+    if not str(target).startswith(str(LIBRARY_DIR.resolve())):
+        raise HTTPException(status_code=400, detail="非法路径")
+    if not target.exists() or not target.is_dir():
+        raise HTTPException(status_code=404, detail="文件夹不存在")
+    _shutil.rmtree(target)
+    # 清除 kb_desc 里对应条目
+    try:
+        with open(KB_DESC_PATH, encoding="utf-8") as f:
+            desc = json.load(f)
+        desc.pop(path, None)
+        with open(KB_DESC_PATH, "w", encoding="utf-8") as f:
+            json.dump(desc, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+    job_id = str(uuid.uuid4())
+    _jobs[job_id] = {"status": "running", "progress": 0, "message": "正在更新索引…"}
+    def _rebuild():
+        try:
+            build_index(str(LIBRARY_DIR), DB_PATH, META_PATH,
+                        progress_cb=lambda p, m: _jobs[job_id].update({"progress": p, "message": m}))
+            reset_collection()
+            _jobs[job_id].update({"status": "done", "progress": 100, "message": "索引已更新"})
+        except Exception as e:
+            _jobs[job_id].update({"status": "error", "message": str(e)})
+    background_tasks.add_task(_rebuild)
+    return {"job_id": job_id}
+
+
+@app.delete("/api/files")
+async def delete_file(path: str, background_tasks: BackgroundTasks):
+    """删除 library/ 下的指定文件并重建索引。path 为相对路径。"""
+    target = (LIBRARY_DIR / path).resolve()
+    # 安全检查：必须在 library/ 目录内
+    if not str(target).startswith(str(LIBRARY_DIR.resolve())):
+        raise HTTPException(status_code=400, detail="非法路径")
+    if not target.exists():
+        raise HTTPException(status_code=404, detail="文件不存在")
+    target.unlink()
+    # 同步删除空目录
+    parent = target.parent
+    if parent != LIBRARY_DIR and parent.exists() and not any(parent.iterdir()):
+        parent.rmdir()
+    # 重建索引
+    job_id = str(uuid.uuid4())
+    _jobs[job_id] = {"status": "running", "progress": 0, "message": "正在更新索引…"}
+    def _rebuild():
+        try:
+            build_index(str(LIBRARY_DIR), DB_PATH, META_PATH,
+                        progress_cb=lambda p, m: _jobs[job_id].update({"progress": p, "message": m}))
+            reset_collection()
+            _jobs[job_id].update({"status": "done", "progress": 100, "message": "索引已更新"})
+        except Exception as e:
+            _jobs[job_id].update({"status": "error", "message": str(e)})
+    background_tasks.add_task(_rebuild)
+    return {"job_id": job_id}
+
+
 @app.post("/api/save-message")
 async def save_message(request: SaveMessageRequest):
     if not request.answer.strip():

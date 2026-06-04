@@ -9,8 +9,8 @@ from loader import load_segments, SUPPORTED
 _CHROMA_SETTINGS = Settings(anonymized_telemetry=False)
 
 # 切分/索引策略版本号——影响 chunk 内容或 embedding 输入时递增
-CHUNK_VERSION = "semantic_v5_table"
-MAX_CHUNK = 300
+CHUNK_VERSION = "semantic_v6_multilang"   # 换 bge-m3 + chunk 600，触发全量重建
+MAX_CHUNK = 600
 MIN_CHUNK = 30
 
 

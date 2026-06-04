@@ -43,8 +43,9 @@ DEFAULTS: dict = {
     "lock_password": "",        # 访问密码（明文，仅限本地部署使用）
 
     # ── retriever.py ─────────────────────────────────────────────────────────
-    "top_k": 1,                 # 无 scope 时从向量库取几个片段喂给 LLM（1-5）
+    "top_k": 3,                 # 无 scope 时从向量库取几个片段喂给 LLM（1-5）
     "top_k_scoped": 6,          # 有 scope 时取几个片段（建议 4-10）
+    "min_score": 50,            # 相关度最低门槛（0-100），低于此分的片段丢弃
 
     # ── providers/ollama_provider.py ─────────────────────────────────────────
     "num_ctx": 1024,            # LLM 上下文窗口大小，越小 prefill 越快（512-8192）
@@ -82,6 +83,7 @@ def save_settings(incoming: dict) -> dict:
     # 数值字段防止越界
     merged["top_k"]       = max(1, int(merged["top_k"]))
     merged["top_k_scoped"]= max(1, int(merged["top_k_scoped"]))
+    merged["min_score"]   = max(0, min(100, int(merged.get("min_score", 50))))
     merged["num_ctx"]     = max(512, int(merged["num_ctx"]))
     merged["num_predict"] = max(128, int(merged["num_predict"]))
     merged["max_chunk"]   = max(100, int(merged["max_chunk"]))

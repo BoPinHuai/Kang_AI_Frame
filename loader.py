@@ -1,7 +1,11 @@
 import csv
+import sys
 from pathlib import Path
 import pypdf
 from docx import Document
+
+# Ansys 等大型 PDF 有极深的对象引用链，需要提高递归上限
+sys.setrecursionlimit(10000)
 
 SUPPORTED = {".pdf", ".docx", ".md", ".xlsx", ".csv"}
 

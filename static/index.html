@@ -7,6 +7,15 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body,{delimiters:[
+    {left:'$$',right:'$$',display:true},
+    {left:'$',right:'$',display:false},
+    {left:'\\[',right:'\\]',display:true},
+    {left:'\\(',right:'\\)',display:false}
+  ]})"></script>
 <style>
 :root {
   --r-xl:22px; --r-lg:16px; --r-md:11px; --r-sm:8px;
@@ -185,6 +194,10 @@ body.desktop{padding-top:28px;}
 .hist-item:hover{background:var(--sb-hover);color:var(--txt);}
 .hist-item.active{background:var(--sb-active);color:var(--txt);font-weight:500;}
 .hist-item-text{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.hist-export{opacity:0;pointer-events:none;background:none;border:none;cursor:pointer;
+  color:var(--txt-m);font-size:13px;padding:2px 4px;border-radius:4px;flex-shrink:0;transition:opacity .12s;}
+.hist-item:hover .hist-export{opacity:1;pointer-events:auto;}
+.hist-export:hover{color:var(--accent);}
 .hist-del{opacity:0;pointer-events:none;background:none;border:none;color:var(--gray3);
           cursor:pointer;font-size:12px;padding:2px 4px;border-radius:3px;flex-shrink:0;}
 .hist-item:hover .hist-del{opacity:1;pointer-events:auto;}
@@ -215,6 +228,40 @@ body.desktop{padding-top:28px;}
 .profile-sub{font-size:10.5px;color:var(--sb-text);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 
+/* ── 统一设置面板 ─────────────────────────────────────────────────────────── */
+.cfg-panel{background:var(--surface);border-radius:var(--r-xl);box-shadow:0 20px 60px rgba(40,36,28,.22);
+  width:840px;max-width:95vw;height:min(88vh,640px);display:flex;overflow:hidden;
+  border:1px solid var(--gray2);}
+.cfg-nav{width:210px;flex-shrink:0;background:var(--sb-bg);border-right:1px solid var(--sb-border);
+  display:flex;flex-direction:column;padding:18px 10px 14px;}
+.cfg-nav-title{font-size:17px;font-weight:500;color:var(--txt);padding:0 8px 14px;
+  font-family:var(--font-display);letter-spacing:.01em;border-bottom:1px solid var(--sb-border);
+  margin-bottom:10px;}
+.cfg-nav-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:var(--r-md);
+  cursor:pointer;font-size:13px;color:var(--sb-text);transition:all .12s;border:none;
+  background:none;width:100%;text-align:left;font-family:inherit;}
+.cfg-nav-item:hover{background:var(--sb-hover);color:var(--txt);}
+.cfg-nav-item.active{background:var(--sb-active);color:var(--txt);font-weight:500;}
+.cfg-nav-item svg{flex-shrink:0;opacity:.7;}
+.cfg-nav-item.active svg{opacity:1;}
+.cfg-content{flex:1;display:flex;flex-direction:column;min-width:0;}
+.cfg-top{display:flex;align-items:center;justify-content:space-between;
+  padding:18px 22px 14px;border-bottom:1px solid var(--gray2);flex-shrink:0;}
+.cfg-top h3{font-size:17px;font-weight:500;font-family:var(--font-display);color:var(--txt);margin:0;}
+.cfg-close{width:30px;height:30px;border:none;background:none;cursor:pointer;border-radius:var(--r-sm);
+  display:flex;align-items:center;justify-content:center;color:var(--txt-m);transition:background .12s;}
+.cfg-close:hover{background:var(--gray1);color:var(--txt);}
+.cfg-body{flex:1;overflow-y:auto;padding:18px 22px;}
+.cfg-footer{padding:12px 22px;border-top:1px solid var(--gray2);display:flex;
+  justify-content:flex-end;gap:8px;flex-shrink:0;}
+.cfg-section{display:none;}
+.cfg-section.active{display:block;}
+/* AI 风格预设 chips */
+.style-presets{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
+.style-preset-chip{padding:4px 11px;border:1px solid var(--gray2);border-radius:999px;
+  font-size:12px;cursor:pointer;background:var(--bg-soft);color:var(--txt-m);
+  transition:all .12s;white-space:nowrap;}
+.style-preset-chip:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft);}
 /* Settings modal */
 .settings-list{display:flex;flex-direction:column;gap:9px;max-height:54vh;overflow-y:auto;
   padding:2px;}
@@ -231,11 +278,13 @@ body.desktop{padding-top:28px;}
 .prov-del{background:none;border:none;color:var(--gray3);cursor:pointer;font-size:14px;
   padding:2px 6px;border-radius:4px;}
 .prov-del:hover{color:#f87171;background:rgba(248,113,113,.12);}
-.prov-fields{display:grid;grid-template-columns:78px 1fr;gap:6px 10px;align-items:center;
-  font-size:12px;}
-.prov-fields label{color:var(--txt-m);}
+.prov-fields{display:flex;flex-direction:column;gap:7px;font-size:12px;}
+.prov-field-row{display:flex;gap:7px;align-items:center;}
+.prov-fields label{color:var(--txt-m);font-size:11px;white-space:nowrap;width:58px;flex-shrink:0;}
 .prov-fields select,.prov-fields input{border:1px solid var(--gray2);border-radius:var(--r-sm);
-  padding:5px 9px;font-size:12px;font-family:inherit;outline:none;background:var(--surface);color:var(--txt);}
+  padding:6px 10px;font-size:12.5px;font-family:inherit;outline:none;background:var(--surface);
+  color:var(--txt);width:100%;min-width:0;}
+.prov-fields select{width:auto;flex-shrink:0;}
 .prov-fields select:focus,.prov-fields input:focus{border-color:var(--accent);}
 .prov-fields select option{background:var(--surface);color:var(--txt);}
 .prov-foot{display:flex;align-items:center;gap:8px;margin-top:8px;}
@@ -760,8 +809,7 @@ body.sb-collapsed .sb-reopen{display:flex;}
         <button class="pm-item" onclick="openProfile()"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>个人资料</button>
         <button class="pm-item" onclick="openStats()"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>数据统计</button>
         <div class="pm-sep"></div>
-        <button class="pm-item" onclick="openSettings()"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>模型设置</button>
-        <button class="pm-item" onclick="openParams()"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="8" cy="6" r="2.5" fill="currentColor" stroke="none"/><circle cx="16" cy="12" r="2.5" fill="currentColor" stroke="none"/><circle cx="10" cy="18" r="2.5" fill="currentColor" stroke="none"/></svg>参数设置</button>
+        <button class="pm-item" onclick="openCfg('model')"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>设置</button>
         <div class="pm-sep" id="dlClientSep"></div>
         <button class="pm-item pm-item-accent" id="dlClientBtn" onclick="downloadClient()">
           <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><polyline points="8 12 12 16 16 12"/><line x1="12" y1="8" x2="12" y2="16"/></svg>
@@ -847,7 +895,260 @@ body.sb-collapsed .sb-reopen{display:flex;}
 </main>
 
 <!-- Upload Modal -->
-<div class="overlay" id="uploadModal">
+<!-- ── 统一设置面板 ──────────────────────────────────────────────────────── -->
+<div class="overlay" id="cfgModal" onclick="if(event.target===this)closeCfg()">
+  <div class="cfg-panel">
+    <!-- 左侧导航 -->
+    <nav class="cfg-nav">
+      <div class="cfg-nav-title" id="cfgNavTitle">设置</div>
+      <button class="cfg-nav-item active" id="cfgTab-profile" onclick="switchCfgTab('profile')">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>个人资料
+      </button>
+      <button class="cfg-nav-item" id="cfgTab-stats" onclick="switchCfgTab('stats')">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>数据统计
+      </button>
+      <button class="cfg-nav-item" id="cfgTab-model" onclick="switchCfgTab('model')">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>模型设置
+      </button>
+      <button class="cfg-nav-item" id="cfgTab-chat" onclick="switchCfgTab('chat')">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>对话行为
+      </button>
+      <button class="cfg-nav-item" id="cfgTab-retrieval" onclick="switchCfgTab('retrieval')">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>检索与索引
+      </button>
+    </nav>
+    <!-- 右侧内容 -->
+    <div class="cfg-content">
+      <div class="cfg-top">
+        <h3 id="cfgContentTitle">个人资料</h3>
+        <button class="cfg-close" onclick="closeCfg()">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="cfg-body">
+
+        <!-- 个人资料 section -->
+        <div class="cfg-section active" id="cfgSec-profile">
+          <div class="profile-edit">
+            <div class="profile-av-wrap">
+              <div class="profile-av-big" id="profileAvPreview2"></div>
+              <button class="profile-av-edit" onclick="document.getElementById('avatarFile2').click()" title="更换头像">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+              </button>
+              <input type="file" id="avatarFile2" accept="image/*" style="display:none" onchange="onAvatarPick2(this)">
+            </div>
+            <div style="flex:1">
+              <div class="param-label" style="margin-bottom:6px">昵称</div>
+              <input class="param-input" id="profileName2" style="width:100%;text-align:left" maxlength="24" placeholder="输入昵称">
+              <div class="param-hint" style="margin-top:6px">显示在首屏问候与侧栏</div>
+              <div class="param-label" style="margin:11px 0 6px">应用名称</div>
+              <input class="param-input" id="profileAppName2" style="width:100%;text-align:left" maxlength="20" placeholder="如：知识库、My KB…">
+              <div class="param-hint" style="margin-top:4px">显示在侧栏左上角</div>
+              <button class="profile-av-clear" id="profileAvClear2" onclick="clearAvatar2()">移除头像</button>
+            </div>
+          </div>
+          <div style="border-top:1px solid var(--gray2);margin-top:16px;padding-top:14px;">
+            <div class="param-row">
+              <div class="param-info">
+                <div class="param-label">访问密码</div>
+                <div class="param-hint">开启后访问时需输入密码</div>
+              </div>
+              <div class="toggle-track" id="lockToggle2" onclick="toggleLock2()">
+                <div class="toggle-thumb"></div>
+              </div>
+            </div>
+            <div id="lockPwdWrap2" style="display:none;margin-top:8px">
+              <input class="param-input" type="password" id="lockPwd2"
+                style="width:100%;text-align:left" placeholder="设置访问密码" maxlength="32">
+              <div class="param-hint" style="margin-top:5px">留空则关闭密码保护</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 数据统计 section -->
+        <div class="cfg-section" id="cfgSec-stats">
+          <div id="cfgStatsBody">
+            <div style="text-align:center;color:var(--txt-m);padding:40px 0">加载中…</div>
+          </div>
+        </div>
+
+        <!-- 模型设置 section -->
+        <div class="cfg-section" id="cfgSec-model">
+          <div class="settings-list" id="providerList2"></div>
+          <button class="prov-add-btn" onclick="addProvider2()">
+            <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+            新增 Provider
+          </button>
+        </div>
+
+        <!-- 对话行为 section -->
+        <div class="cfg-section" id="cfgSec-chat">
+          <div class="param-section">
+            <div class="param-label" style="margin-bottom:6px">AI 风格提示词</div>
+            <div class="style-presets">
+              <button class="style-preset-chip" onclick="applyStylePreset2('professional')">📋 专业助手</button>
+              <button class="style-preset-chip" onclick="applyStylePreset2('concise')">✂️ 简洁回答</button>
+              <button class="style-preset-chip" onclick="applyStylePreset2('doconly')">📚 只引用文档</button>
+              <button class="style-preset-chip" onclick="applyStylePreset2('engineering')">🔧 工程技术</button>
+              <button class="style-preset-chip" onclick="applyStylePreset2('english')">🌐 英文回答</button>
+            </div>
+            <textarea class="param-textarea" id="cfg-system-prompt" rows="4" style="margin-top:6px"></textarea>
+          </div>
+          <div class="param-section">
+            <div class="param-row">
+              <div class="param-info"><div class="param-label">携带对话历史</div><div class="param-hint">关闭后每次提问独立，不记忆上文</div></div>
+              <div class="toggle-track" id="cfg-use-history" onclick="toggleCfgHistory()"><div class="toggle-thumb"></div></div>
+            </div>
+            <div class="param-row">
+              <div class="param-info"><div class="param-label">检索模式</div><div class="param-hint">auto：智能判断；always：始终检索；never：直接对话</div></div>
+              <select class="param-input" id="cfg-rag-mode" style="width:88px;cursor:pointer">
+                <option value="auto">auto</option>
+                <option value="always">always</option>
+                <option value="never">never</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- 检索与索引 section -->
+        <div class="cfg-section" id="cfgSec-retrieval">
+          <div class="param-section">
+            <div class="param-section-title">检索参数</div>
+            <div class="param-row">
+              <div class="param-info"><div class="param-label">普通检索片段数</div><div class="param-hint">无 @scope 时取几段（1–5）</div></div>
+              <input class="param-input" type="number" id="cfg-top-k" min="1" max="10">
+            </div>
+            <div class="param-row">
+              <div class="param-info"><div class="param-label">指定文件检索片段数</div><div class="param-hint">使用 @文件 时取几段（4–10）</div></div>
+              <input class="param-input" type="number" id="cfg-top-k-scoped" min="1" max="20">
+            </div>
+            <div class="param-row">
+              <div class="param-info"><div class="param-label">最低相关度</div><div class="param-hint">低于此分的片段丢弃（0–100）</div></div>
+              <input class="param-input" type="number" id="cfg-min-score" min="0" max="100">
+            </div>
+          </div>
+          <div class="param-section">
+            <div class="param-section-title">模型参数（Ollama）</div>
+            <div class="param-row">
+              <div class="param-info"><div class="param-label">上下文窗口 num_ctx</div><div class="param-hint">越小 prefill 越快，建议 1024–4096</div></div>
+              <input class="param-input" type="number" id="cfg-num-ctx" min="512" step="256">
+            </div>
+            <div class="param-row">
+              <div class="param-info"><div class="param-label">最大输出 num_predict</div><div class="param-hint">回复 token 上限</div></div>
+              <input class="param-input" type="number" id="cfg-num-predict" min="128" step="128">
+            </div>
+          </div>
+          <div class="param-section">
+            <div class="param-section-title">索引参数</div>
+            <div class="param-row">
+              <div class="param-info"><div class="param-label">分块大小 max_chunk</div><div class="param-hint">文档切分字符数，越小越精准（100–800）</div></div>
+              <input class="param-input" type="number" id="cfg-max-chunk" min="100" step="50">
+            </div>
+            <div class="param-warn">⚠ 修改分块大小后，需在知识库面板点「更新索引」才能生效</div>
+          </div>
+        </div>
+
+        <!-- 参数设置 section（已合并，保留 id 供旧代码兼容） -->
+        <div class="cfg-section" id="cfgSec-params" style="display:none!important">
+          <div class="param-section">
+            <div class="param-section-title">对话行为</div>
+            <div style="margin-bottom:10px">
+              <div class="param-label" style="margin-bottom:6px">AI 风格提示词</div>
+              <div class="style-presets">
+                <button class="style-preset-chip" onclick="applyStylePreset2('professional')">📋 专业助手</button>
+                <button class="style-preset-chip" onclick="applyStylePreset2('concise')">✂️ 简洁回答</button>
+                <button class="style-preset-chip" onclick="applyStylePreset2('doconly')">📚 只引用文档</button>
+                <button class="style-preset-chip" onclick="applyStylePreset2('engineering')">🔧 工程技术</button>
+                <button class="style-preset-chip" onclick="applyStylePreset2('english')">🌐 英文回答</button>
+              </div>
+              <textarea class="param-textarea" id="cfg-system-prompt" rows="4"></textarea>
+              <div class="param-hint">定义 AI 的角色、语气和回答风格</div>
+            </div>
+            <div class="param-row">
+              <div class="param-info">
+                <div class="param-label">携带对话历史</div>
+                <div class="param-hint">关闭后每次提问独立，不记忆上文</div>
+              </div>
+              <div class="toggle-track" id="cfg-use-history" onclick="toggleCfgHistory()">
+                <div class="toggle-thumb"></div>
+              </div>
+            </div>
+            <div class="param-row">
+              <div class="param-info">
+                <div class="param-label">检索模式</div>
+                <div class="param-hint">auto：智能判断；always：始终检索；never：直接对话</div>
+              </div>
+              <select class="param-input" id="cfg-rag-mode" style="width:88px;cursor:pointer">
+                <option value="auto">auto</option>
+                <option value="always">always</option>
+                <option value="never">never</option>
+              </select>
+            </div>
+          </div>
+          <div class="param-section">
+            <div class="param-section-title">检索参数</div>
+            <div class="param-row">
+              <div class="param-info">
+                <div class="param-label">普通检索片段数</div>
+                <div class="param-hint">无 @scope 时取几段喂给模型（1–5）</div>
+              </div>
+              <input class="param-input" type="number" id="cfg-top-k" min="1" max="10">
+            </div>
+            <div class="param-row">
+              <div class="param-info">
+                <div class="param-label">指定文件检索片段数</div>
+                <div class="param-hint">使用 @文件 时取几段（4–10）</div>
+              </div>
+              <input class="param-input" type="number" id="cfg-top-k-scoped" min="1" max="20">
+            </div>
+            <div class="param-row">
+              <div class="param-info">
+                <div class="param-label">最低相关度</div>
+                <div class="param-hint">低于此分的片段丢弃（0–100）</div>
+              </div>
+              <input class="param-input" type="number" id="cfg-min-score" min="0" max="100">
+            </div>
+          </div>
+          <div class="param-section">
+            <div class="param-section-title">模型参数（Ollama）</div>
+            <div class="param-row">
+              <div class="param-info">
+                <div class="param-label">上下文窗口 num_ctx</div>
+                <div class="param-hint">越小 prefill 越快，建议 1024–4096</div>
+              </div>
+              <input class="param-input" type="number" id="cfg-num-ctx" min="512" step="256">
+            </div>
+            <div class="param-row">
+              <div class="param-info">
+                <div class="param-label">最大输出 num_predict</div>
+                <div class="param-hint">回复 token 上限，越大越完整但越慢</div>
+              </div>
+              <input class="param-input" type="number" id="cfg-num-predict" min="128" step="128">
+            </div>
+          </div>
+          <div class="param-section">
+            <div class="param-section-title">索引参数</div>
+            <div class="param-row">
+              <div class="param-info">
+                <div class="param-label">分块大小 max_chunk</div>
+                <div class="param-hint">文档切分字符数，越小越精准（100–800）</div>
+              </div>
+              <input class="param-input" type="number" id="cfg-max-chunk" min="100" step="50">
+            </div>
+            <div class="param-warn">⚠ 修改分块大小后，需在知识库面板点「更新索引」才能生效</div>
+          </div>
+        </div>
+
+      </div><!-- cfg-body -->
+      <div class="cfg-footer">
+        <button class="btn-cancel" onclick="closeCfg()">取消</button>
+        <button class="btn-ok" id="cfgSaveBtn" onclick="saveCfgSection()">保存</button>
+      </div>
+    </div><!-- cfg-content -->
+  </div><!-- cfg-panel -->
+</div>
+
+<div class="overlay" id="uploadModal" onclick="if(event.target===this)this.classList.remove('show')">
   <div class="modal">
     <h3>上传文档</h3>
     <div class="upload-dest" id="uploadDestLabel">📁 根目录</div>
@@ -866,7 +1167,7 @@ body.sb-collapsed .sb-reopen{display:flex;}
 </div>
 
 <!-- Library Modal -->
-<div class="overlay" id="libraryModal">
+<div class="overlay" id="libraryModal" onclick="if(event.target===this)this.classList.remove('show')">
   <div class="modal wide">
     <h3>知识库文档</h3>
     <div class="lib-toolbar">
@@ -915,8 +1216,15 @@ body.sb-collapsed .sb-reopen{display:flex;}
       <div class="param-section">
         <div class="param-section-title">对话行为</div>
         <div style="margin-bottom:10px">
-          <div class="param-label" style="margin-bottom:5px">AI 风格提示词</div>
-          <textarea class="param-textarea" id="p-system-prompt" rows="3"></textarea>
+          <div class="param-label" style="margin-bottom:6px">AI 风格提示词</div>
+          <div class="style-presets">
+            <button class="style-preset-chip" onclick="applyStylePreset('professional')">📋 专业助手</button>
+            <button class="style-preset-chip" onclick="applyStylePreset('concise')">✂️ 简洁回答</button>
+            <button class="style-preset-chip" onclick="applyStylePreset('doconly')">📚 只引用文档</button>
+            <button class="style-preset-chip" onclick="applyStylePreset('engineering')">🔧 工程技术</button>
+            <button class="style-preset-chip" onclick="applyStylePreset('english')">🌐 英文回答</button>
+          </div>
+          <textarea class="param-textarea" id="p-system-prompt" rows="4"></textarea>
           <div class="param-hint">定义 AI 的角色、语气和回答风格</div>
         </div>
         <div class="param-row">
@@ -1057,7 +1365,7 @@ body.sb-collapsed .sb-reopen{display:flex;}
 </div>
 
 <!-- KB Edit Modal -->
-<div class="overlay" id="kbEditModal">
+<div class="overlay" id="kbEditModal" onclick="if(event.target===this)this.classList.remove('show')">
   <div class="modal" style="width:430px">
     <h3>编辑知识库</h3>
     <div class="profile-edit">
@@ -1271,12 +1579,271 @@ function updateModelChip() {
   document.getElementById('modelChipName').textContent =
     active + (p?.model ? ' · ' + p.model : '');
 }
-function openSettings() {
-  _draft = JSON.parse(JSON.stringify(_config || {active:'', providers:{}}));
-  renderSettings();
-  document.getElementById('settingsModal').classList.add('show');
+// ── 统一设置面板 ─────────────────────────────────────────────────────────────
+const _CFG_TITLES = {profile:'个人资料', stats:'数据统计', model:'模型设置', chat:'对话行为', retrieval:'检索与索引'};
+let _cfgTab = 'profile';
+
+function openCfg(tab) {
+  tab = tab || _cfgTab || 'profile';
+  switchCfgTab(tab, true);
+  document.getElementById('cfgModal').classList.add('show');
+  closeProfileMenu();
 }
-function closeSettings() { document.getElementById('settingsModal').classList.remove('show'); }
+function closeCfg() { document.getElementById('cfgModal').classList.remove('show'); }
+
+function switchCfgTab(tab, noLoad) {
+  _cfgTab = tab;
+  document.querySelectorAll('.cfg-nav-item').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.cfg-section').forEach(el => el.classList.remove('active'));
+  document.getElementById('cfgTab-' + tab).classList.add('active');
+  document.getElementById('cfgSec-' + tab).classList.add('active');
+  document.getElementById('cfgContentTitle').textContent = _CFG_TITLES[tab];
+  const saveBtn = document.getElementById('cfgSaveBtn');
+  saveBtn.style.display = tab === 'stats' ? 'none' : '';
+  if (!noLoad) _loadCfgSection(tab);
+}
+
+async function _loadCfgSection(tab) {
+  if (tab === 'profile')   _initCfgProfile();
+  if (tab === 'stats')     _loadCfgStats();
+  if (tab === 'model')     _initCfgModel();
+  if (tab === 'chat')      _initCfgParams();
+  if (tab === 'retrieval') _initCfgParams();
+}
+
+// 保存当前 tab
+async function saveCfgSection() {
+  const btn = document.getElementById('cfgSaveBtn');
+  btn.disabled = true; btn.textContent = '保存中…';
+  try {
+    if (_cfgTab === 'profile')   await _saveCfgProfile();
+    if (_cfgTab === 'model')     await _saveCfgModel();
+    if (_cfgTab === 'chat')      await _saveCfgParams();
+    if (_cfgTab === 'retrieval') await _saveCfgParams();
+  } finally {
+    btn.disabled = false; btn.textContent = '保存';
+  }
+}
+
+// ── 个人资料 ──
+let _avatarDraft2 = null;
+let _lockEnabled2 = false;
+
+function _initCfgProfile() {
+  _avatarDraft2 = null;
+  document.getElementById('profileName2').value = _profile.user_name || '';
+  document.getElementById('profileAppName2').value = _profile.app_name || '';
+  fetch('/api/lock-status').then(r=>r.json()).then(d=>{
+    _lockEnabled2 = d.locked;
+    document.getElementById('lockToggle2').classList.toggle('on', _lockEnabled2);
+    document.getElementById('lockPwdWrap2').style.display = _lockEnabled2 ? 'block' : 'none';
+    document.getElementById('lockPwd2').value = '';
+    document.getElementById('lockPwd2').placeholder = _lockEnabled2 ? '修改密码（留空保持不变）' : '设置访问密码';
+  });
+  _renderProfilePreview2();
+}
+function _renderProfilePreview2() {
+  const av = _avatarDraft2 !== null ? _avatarDraft2 : _profile.user_avatar;
+  const name = document.getElementById('profileName2').value || _profile.user_name || '朋';
+  const prev = document.getElementById('profileAvPreview2');
+  if (av) { prev.style.backgroundImage = `url('${av}')`; prev.textContent = ''; }
+  else    { prev.style.backgroundImage = ''; prev.textContent = name.trim().charAt(0); }
+  document.getElementById('profileAvClear2').classList.toggle('show', !!av);
+}
+function clearAvatar2() { _avatarDraft2 = ''; _renderProfilePreview2(); }
+function toggleLock2() {
+  _lockEnabled2 = !_lockEnabled2;
+  document.getElementById('lockToggle2').classList.toggle('on', _lockEnabled2);
+  document.getElementById('lockPwdWrap2').style.display = _lockEnabled2 ? 'block' : 'none';
+  if (_lockEnabled2) document.getElementById('lockPwd2').focus();
+}
+function onAvatarPick2(input) {
+  const file = input.files[0]; input.value = '';
+  if (!file) return;
+  const img = new Image(), reader = new FileReader();
+  reader.onload = e => {
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 256;
+      const ctx = canvas.getContext('2d');
+      const s = Math.min(img.width, img.height);
+      ctx.drawImage(img, (img.width-s)/2, (img.height-s)/2, s, s, 0, 0, 256, 256);
+      _avatarDraft2 = canvas.toDataURL('image/jpeg', 0.85);
+      _renderProfilePreview2();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+async function _saveCfgProfile() {
+  const payload = {
+    user_name: document.getElementById('profileName2').value.trim() || '朋友',
+    app_name:  document.getElementById('profileAppName2').value.trim() || '知识库',
+    lock_enabled: _lockEnabled2,
+  };
+  if (_avatarDraft2 !== null) payload.user_avatar = _avatarDraft2;
+  const pwd = document.getElementById('lockPwd2').value;
+  if (pwd) payload.lock_password = pwd;
+  else if (_lockEnabled2 && !pwd) { /* keep existing */ }
+  else if (!_lockEnabled2) payload.lock_password = '';
+  try {
+    await fetch('/api/settings', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+    await loadProfile();
+    closeCfg(); toast('已保存');
+  } catch(e) { toast('保存失败','err'); }
+}
+
+// ── 数据统计 ──
+async function _loadCfgStats() {
+  const body = document.getElementById('cfgStatsBody');
+  body.innerHTML = '<div style="text-align:center;color:var(--txt-m);padding:40px 0">加载中…</div>';
+  try {
+    const d = await fetch('/api/stats').then(r=>r.json());
+    body.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:4px 0">
+        <div style="background:var(--bg-soft);border-radius:var(--r-lg);padding:28px 20px;text-align:center">
+          <div style="font-size:36px;font-weight:600;color:var(--txt);line-height:1">${d.doc_count??0}</div>
+          <div style="font-size:12px;color:var(--txt-m);margin-top:8px">文档数</div>
+        </div>
+        <div style="background:var(--bg-soft);border-radius:var(--r-lg);padding:28px 20px;text-align:center">
+          <div style="font-size:36px;font-weight:600;color:var(--txt);line-height:1">${d.indexed_count??0}</div>
+          <div style="font-size:12px;color:var(--txt-m);margin-top:8px">已索引文件</div>
+        </div>
+        <div style="background:var(--bg-soft);border-radius:var(--r-lg);padding:28px 20px;text-align:center">
+          <div style="font-size:36px;font-weight:600;color:var(--accent);line-height:1">${d.conv_count??0}</div>
+          <div style="font-size:12px;color:var(--txt-m);margin-top:8px">对话数</div>
+        </div>
+        <div style="background:var(--bg-soft);border-radius:var(--r-lg);padding:28px 20px;text-align:center">
+          <div style="font-size:36px;font-weight:600;color:var(--accent);line-height:1">${d.msg_count??0}</div>
+          <div style="font-size:12px;color:var(--txt-m);margin-top:8px">消息总数</div>
+        </div>
+      </div>`;
+  } catch { body.innerHTML = '<div style="color:var(--txt-m);text-align:center;padding:30px">加载失败</div>'; }
+}
+
+// ── 模型设置 ──
+let _draft2 = null;
+function _initCfgModel() {
+  _draft2 = JSON.parse(JSON.stringify(_config || {active:'', providers:{}}));
+  _renderCfgModel();
+}
+function _renderCfgModel() {
+  // 复用原有 renderSettings 逻辑，只换容器
+  const list = document.getElementById('providerList2');
+  const names = Object.keys(_draft2.providers || {});
+  if (!names.length) {
+    list.innerHTML = '<div style="color:var(--txt-m);text-align:center;padding:18px;font-size:12.5px">还没有任何 provider，点击下方新增</div>';
+    return;
+  }
+  list.innerHTML = names.map(name => {
+    const p = _draft2.providers[name];
+    const isActive = name === _draft2.active;
+    return `<div class="prov-row ${isActive?'active':''}" id="prow2-${name}">
+      <div class="prov-head">
+        <input type="radio" class="prov-radio" name="active2" value="${name}" ${isActive?'checked':''} onchange="_setActive2('${name}')">
+        <input class="prov-name-input" value="${esc(name)}" onchange="_renameProv2('${name}',this.value)" style="flex:1">
+        <button class="prov-del" onclick="_delProv2('${name}')">✕</button>
+      </div>
+      <div class="prov-fields">
+        <div class="prov-field-row">
+          <label>类型</label>
+          <select onchange="_setProvField2('${name}','type',this.value)">
+            <option ${p.type==='ollama'?'selected':''}>ollama</option>
+            <option ${p.type==='openai'?'selected':''}>openai</option>
+          </select>
+        </div>
+        <div class="prov-field-row">
+          <label>模型</label>
+          <input placeholder="model name" value="${esc(p.model||'')}" onchange="_setProvField2('${name}','model',this.value)">
+        </div>
+        <div class="prov-field-row">
+          <label>Base URL</label>
+          <input placeholder="https://api.example.com/v1" value="${esc(p.base_url||'')}" onchange="_setProvField2('${name}','base_url',this.value)">
+        </div>
+        <div class="prov-field-row">
+          <label>API Key</label>
+          <input placeholder="${p.has_key?'已设置（输入新值可修改）':'输入 API Key'}" type="password"
+            onchange="_setProvField2('${name}','api_key',this.value)">
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+function _setActive2(n)      { _draft2.active = n; _renderCfgModel(); }
+function _delProv2(n)        { delete _draft2.providers[n]; if(_draft2.active===n){const k=Object.keys(_draft2.providers)[0]||'';_draft2.active=k;} _renderCfgModel(); }
+function _setProvField2(n,k,v){ _draft2.providers[n][k]=v; }
+function _renameProv2(old,nw){ if(!nw||nw===old)return; _draft2.providers[nw]=_draft2.providers[old]; delete _draft2.providers[old]; if(_draft2.active===old)_draft2.active=nw; _renderCfgModel(); }
+function addProvider2() {
+  const name = 'provider_' + Date.now();
+  _draft2.providers[name] = {type:'openai',model:'',base_url:'',api_key:''};
+  _renderCfgModel();
+}
+async function _saveCfgModel() {
+  try {
+    const r = await fetch('/api/config', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(_draft2)});
+    if (!r.ok) throw new Error();
+    _config = await r.json(); invalidateProviderCache();
+    closeCfg(); toast('模型设置已保存'); checkStatus();
+  } catch { toast('保存失败','err'); }
+}
+
+// ── 参数设置 ──
+let _paramsData2 = null;
+async function _initCfgParams() {
+  try {
+    _paramsData2 = await fetch('/api/settings').then(r=>r.json());
+    document.getElementById('cfg-system-prompt').value = _paramsData2.system_prompt || '';
+    document.getElementById('cfg-use-history').classList.toggle('on', !!_paramsData2.use_history);
+    document.getElementById('cfg-rag-mode').value = _paramsData2.rag_mode || 'auto';
+    document.getElementById('cfg-top-k').value = _paramsData2.top_k ?? 3;
+    document.getElementById('cfg-top-k-scoped').value = _paramsData2.top_k_scoped ?? 6;
+    document.getElementById('cfg-min-score').value = _paramsData2.min_score ?? 50;
+    document.getElementById('cfg-num-ctx').value = _paramsData2.num_ctx ?? 1024;
+    document.getElementById('cfg-num-predict').value = _paramsData2.num_predict ?? 2048;
+    document.getElementById('cfg-max-chunk').value = _paramsData2.max_chunk ?? 300;
+  } catch { toast('加载参数失败','err'); }
+}
+function toggleCfgHistory() {
+  const el = document.getElementById('cfg-use-history');
+  el.classList.toggle('on');
+}
+function applyStylePreset2(key) {
+  const presets = {
+    professional: '你是一个专业的智能助手。根据参考资料回答用户问题，资料不相关时用自己的知识回答。回答详细完整，充分展开说明。',
+    concise:      '你是一个简洁的助手。用最少的文字给出准确答案，不需要展开说明，不要废话。',
+    doconly:      '你只能根据用户提供的参考资料回答问题。如果资料中没有相关信息，直接说"文档中未找到相关内容"，不要用自己的知识补充。',
+    engineering:  '你是一位资深工程技术专家。根据参考资料和专业知识，从工程实践角度详细解答问题，包括原理、操作步骤和注意事项。',
+    english:      'You are a helpful assistant. Answer all questions in English, based on the provided reference materials. Be clear, accurate, and professional.',
+  };
+  if (presets[key]) document.getElementById('cfg-system-prompt').value = presets[key];
+}
+async function _saveCfgParams() {
+  const payload = {
+    system_prompt: document.getElementById('cfg-system-prompt').value,
+    use_history:   document.getElementById('cfg-use-history').classList.contains('on'),
+    rag_mode:      document.getElementById('cfg-rag-mode').value,
+    top_k:         parseInt(document.getElementById('cfg-top-k').value),
+    top_k_scoped:  parseInt(document.getElementById('cfg-top-k-scoped').value),
+    min_score:     parseInt(document.getElementById('cfg-min-score').value),
+    num_ctx:       parseInt(document.getElementById('cfg-num-ctx').value),
+    num_predict:   parseInt(document.getElementById('cfg-num-predict').value),
+    max_chunk:     parseInt(document.getElementById('cfg-max-chunk').value),
+  };
+  try {
+    await fetch('/api/settings', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+    closeCfg(); toast('参数已保存');
+  } catch { toast('保存失败','err'); }
+}
+
+// ── 旧入口重定向到统一面板 ──────────────────────────────────────────────────
+function openSettings() { openCfg('model'); }
+function closeSettings() { closeCfg(); }
+function openStats()    { openCfg('stats'); }
+function closeStats()   { closeCfg(); }
+function openParams()   { openCfg('chat'); }
+function closeParams()  { closeCfg(); }
+function openProfile()  { openCfg('profile'); }
+function closeProfile() { closeCfg(); }
 function renderSettings() {
   const list = document.getElementById('providerList');
   const names = Object.keys(_draft.providers || {});
@@ -1394,6 +1961,7 @@ async function loadHist() {
     const el = document.createElement('div');
     el.className = 'hist-item' + (item.id === convId ? ' active' : '');
     el.innerHTML = `<span class="hist-item-text" title="${esc(item.title)}">${esc(item.title)}</span>
+      <button class="hist-export" title="导出为 Markdown" onclick="exportConv(event,'${item.id}','${esc(item.title)}')">↓</button>
       <button class="hist-del" onclick="delHist(event,'${item.id}')">✕</button>`;
     el.addEventListener('click', () => loadConv(item.id));
     list.appendChild(el);
@@ -1410,6 +1978,34 @@ async function loadConv(id) {
   syncWelcome();
   document.getElementById('msgs').scrollTop = 99999;
   loadHist();
+}
+
+async function exportConv(e, id, title) {
+  e.stopPropagation();
+  try {
+    const conv = await fetch(`/api/history/${id}`).then(r => r.json());
+    const msgs = conv.messages || [];
+    let md = `# ${title || '对话记录'}\n\n`;
+    md += `> 导出时间：${new Date().toLocaleString('zh-CN')}\n\n---\n\n`;
+    msgs.forEach(m => {
+      if (m.role === 'user') {
+        md += `**用户**\n\n${m.content}\n\n`;
+      } else if (m.role === 'assistant') {
+        md += `**助手**\n\n${m.content}\n\n`;
+        if (m.sources && m.sources.length) {
+          md += `> 来源：${m.sources.map(s => s.source + (s.loc ? ` (${s.loc})` : '')).join('、')}\n\n`;
+        }
+      }
+      md += '---\n\n';
+    });
+    const blob = new Blob([md], {type: 'text/markdown;charset=utf-8'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${(title || '对话').slice(0,30)}.md`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast('已导出为 Markdown');
+  } catch { toast('导出失败', 'err'); }
 }
 
 async function delHist(e, id) {
@@ -1574,6 +2170,31 @@ const FOL_IC  = `<svg class="kb-folder-ic" width="14" height="14" fill="none" st
 let _trackData = [];  // 缓存，供折叠状态保持
 
 // 把 @path 插入输入框（焦点 + 光标末尾）
+async function deleteKbFolder(ev, path, name) {
+  ev.stopPropagation();
+  if (!confirm(`确认删除知识库「${name}」？\n\n里面所有文件将被永久删除，此操作不可撤销。`)) return;
+  try {
+    const r = await fetch(`/api/kb/folder?path=${encodeURIComponent(path)}`, {method:'DELETE'});
+    if (!r.ok) throw new Error((await r.json()).detail || '删除失败');
+    toast(`「${name}」已删除，索引更新中…`);
+    if (currentScope && currentScope.startsWith(path)) setScope(null);
+    await loadKbView();
+    await loadKbTrack();
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+async function deleteKbFile(path) {
+  if (!confirm(`确认删除文件：\n${path}\n\n此操作不可撤销。`)) return;
+  try {
+    const r = await fetch(`/api/files?path=${encodeURIComponent(path)}`, {method:'DELETE'});
+    if (!r.ok) throw new Error((await r.json()).detail || '删除失败');
+    toast('文件已删除，索引更新中…');
+    // 如果当前 scope 是被删文件，清除
+    if (currentScope === path) setScope(null);
+    await loadKbTrack();
+  } catch(e) { toast(e.message, 'err'); }
+}
+
 function kbInsertAt(path) {
   const inp = document.getElementById('inp');
   inp.value = '@' + path + ' ';
@@ -1763,6 +2384,7 @@ async function loadKbTrack() {
           <div class="kb-file-actions">
             <button class="kb-file-btn" title="预览文件内容" onclick="openPreview('${esc(f.path)}')">预览</button>
             <button class="kb-file-btn" title="插入 @路径 到输入框" onclick="kbInsertAt('${esc(f.path)}')">@</button>
+            <button class="kb-file-btn" title="删除此文件" style="color:#e05252;border-color:transparent" onclick="deleteKbFile('${esc(f.path)}')">✕</button>
           </div>
         </div>`).join('');
       return `<div class="kb-folder-row">
@@ -1862,6 +2484,9 @@ function kbCardHTML(k, isRoot) {
   const edit = isRoot ? '' :
     `<button class="kb-card-edit" title="编辑（名称/简述/图片）" onclick="openKbEdit(event,'${esc(k.path)}')">
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+    </button>
+    <button class="kb-card-edit" title="删除此知识库" style="right:40px;color:#e05252" onclick="deleteKbFolder(event,'${esc(k.path)}','${esc(k.name)}')">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
     </button>`;
   return `<div class="kb-card" onclick="kbOpenFolder('${esc(k.path)}','${esc(k.name)}')">
     ${edit}
@@ -2003,11 +2628,13 @@ function syncWelcome() {
 
 function newChat() {
   convId = null;
-  showChat();      // 从知识库页返回对话视图
-  setScope(null);  // 新对话 → 范围重置为「全部」（每个对话独立锁定）
+  showChat();
+  setScope(null);
+  switchSbTab('chats');   // 自动切回对话 tab
   document.getElementById('msgs').innerHTML = emptyHTML();
   syncWelcome();
   loadHist();
+  setTimeout(() => document.getElementById('inp').focus(), 50);  // 自动聚焦输入框
 }
 
 // ── Send ──
